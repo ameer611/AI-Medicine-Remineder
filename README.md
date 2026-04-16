@@ -58,7 +58,7 @@ dori_scheduler/
 
 1. **Clone the repository:**
    ```bash
-   git clone <your-repository-url>
+   git clone https://github.com/ameer611/AI-Medicine-Remineder.git
    cd dori_scheduler
    ```
 
