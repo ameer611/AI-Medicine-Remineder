@@ -1,0 +1,58 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: dori_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootsecret
+      MYSQL_DATABASE: dori_scheduler
+      MYSQL_USER: dori
+      MYSQL_PASSWORD: secret
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "dori", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: dori_api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+aiomysql://dori:secret@mysql:3306/dori_scheduler
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: python run_api.py
+
+  bot:
+    build: .
+    container_name: dori_bot
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=mysql+aiomysql://dori:secret@mysql:3306/dori_scheduler
+      - API_BASE_URL=http://api:8000
+    command: python run_bot.py
+
+volumes:
+  mysql_data:
