@@ -59,7 +59,7 @@ dori_scheduler/
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/ameer611/AI-Medicine-Remineder.git
-   cd dori_scheduler
+   cd AI-Medicine-Remineder
    ```
 
 2. **Configure Environment Variables:**
