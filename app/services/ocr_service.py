@@ -127,7 +127,6 @@ async def extract_text(image_bytes: bytes, filename: str = "prescription.jpg") -
             except httpx.RequestError as exc:
                 last_exc = exc
                 logger.warning("Gemini API network error string %s on attempt %d. Retrying...", exc, attempt + 1)
-                import asyncio
                 await asyncio.sleep(2 ** attempt)
                 continue
             except ValueError as exc:
