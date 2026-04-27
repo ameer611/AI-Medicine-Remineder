@@ -1,59 +1,59 @@
-"""LLM service — wraps Google Gemini API."""
+"""LLM service — wraps Groq chat/completions API."""
+import json
 import logging
-import google.generativeai as genai
-from google.api_core import retry
+from groq import AsyncGroq
 
 from app.config import settings
 from app.schemas.medication import LLMPrescriptionResponse, MedicationLLM
 
 logger = logging.getLogger(__name__)
 
-# Configure the SDK
-genai.configure(api_key=settings.GOOGLE_API_KEY)
+# Initialize Async Client
+client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 
-SYSTEM_PROMPT = """You are a clinical pharmacist assistant.
+# We extract the JSON schema from your Pydantic model to tell Groq exactly what we want
+JSON_SCHEMA = json.dumps(LLMPrescriptionResponse.model_json_schema(), indent=2)
+
+SYSTEM_PROMPT = f"""You are a clinical pharmacist assistant.
 Extract all medications from the prescription text.
+You MUST return a JSON object that matches this schema:
+{JSON_SCHEMA}
+
 Rules:
-- dosage_per_day must be between 1 and 4
+- dosage_per_day must be an integer between 1 and 4
 - timing must be one of: morning, afternoon, evening, custom
-- duration_in_days must be the schedule course length in days or null if not told
-- notes should reflect meal instructions (e.g. "after meal", "before meal") or null"""
+- duration_in_days must be an integer or null
+- notes should reflect meal instructions or null"""
 
 class LLMError(Exception):
     pass
 
 async def parse_prescription(text: str) -> list[MedicationLLM]:
-    """Call Google Gemini with prescription text using controlled JSON output."""
-    
-    # Initialize the model with Response MIME Type constraints
-    model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
-        generation_config={
-            "response_mime_type": "application/json",
-            "response_schema": LLMPrescriptionResponse, # Gemini uses your Pydantic model directly!
-            "temperature": 0.1,
-        },
-        system_instruction=SYSTEM_PROMPT
-    )
-
+    """Call Groq LLM with prescription text using JSON mode."""
     try:
-        # Gemini's SDK handles retries internally if configured, 
-        # but we'll wrap it for consistency.
-        response = await model.generate_content_async(
-            f"Prescription text:\n{text}",
-            # Use a retry policy for transient network issues
-            request_options={'retry': retry.Retry(predicate=retry.if_transient_error)}
+        chat_completion = await client.chat.completions.create(
+            # Using Llama 3.3 70B for high reasoning accuracy, 
+            # or llama-3.1-8b-instant for maximum speed.
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": f"Prescription text:\n{text}"},
+            ],
+            temperature=0.1,
+            # Enable JSON mode
+            response_format={"type": "json_object"},
         )
 
-        if not response.text:
-            raise LLMError("Empty response from Gemini")
+        content = chat_completion.choices[0].message.content
+        if not content:
+            raise LLMError("Groq returned an empty response.")
 
-        # Validation: Gemini guarantees JSON structure per response_schema
-        parsed = LLMPrescriptionResponse.model_validate_json(response.text)
+        # Parse and validate with Pydantic
+        parsed = LLMPrescriptionResponse.model_validate_json(content)
         
-        logger.info("Gemini parsed %d medication(s)", len(parsed.medications))
+        logger.info("Groq parsed %d medication(s) successfully", len(parsed.medications))
         return parsed.medications
 
     except Exception as exc:
-        logger.error("Gemini API error: %s", exc)
-        raise LLMError(f"Failed to parse prescription: {str(exc)}") from exc
+        logger.error("Groq API Error: %s", exc)
+        raise LLMError(f"Failed to process prescription with Groq: {str(exc)}")
