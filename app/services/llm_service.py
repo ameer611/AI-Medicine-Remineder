@@ -15,15 +15,21 @@ client = AsyncGroq(api_key=settings.GROQ_API_KEY)
 JSON_SCHEMA = json.dumps(LLMPrescriptionResponse.model_json_schema(), indent=2)
 
 SYSTEM_PROMPT = f"""You are a clinical pharmacist assistant.
-Extract all medications from the prescription text.
+Extract all medications from the prescription text and suggest specific clock times for each dose.
 You MUST return a JSON object that matches this schema:
 {JSON_SCHEMA}
 
-Rules:
-- dosage_per_day must be an integer between 1 and 4
-- timing must be one of: morning, afternoon, evening, custom
-- duration_in_days must be an integer or null
-- notes should reflect meal instructions or null"""
+Important rules:
+- `dosage_per_day` must be an integer between 1 and 4.
+- `suggested_times` must contain exactly `dosage_per_day` entries, each in HH:MM 24-hour format (e.g. 08:00).
+- When notes include meal context (e.g., "after meal", "with food"), prefer meal times (08:00, 13:00, 19:00).
+- For instructions like "before sleep" or "at bedtime", choose a late evening time (e.g., 22:00).
+- For antibiotics or medications requiring even spacing, distribute times evenly (e.g., 08:00, 16:00, 00:00 for 3x/day if appropriate).
+- `timing_reasoning` should be a brief explanation (1-2 sentences) describing why these times were chosen, in the same language as the prescription.
+- `duration_in_days` should be an integer when specified, otherwise null.
+- `notes` should capture meal-related or other instruction text when present, otherwise null.
+
+Return concise, clinically sensible times and a short reasoning for each medication."""
 
 class LLMError(Exception):
     pass

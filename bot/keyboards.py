@@ -147,3 +147,49 @@ def entry_method_keyboard() -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+def request_contact_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="📱 Share phone number", request_contact=True)]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
+
+def supervisor_selection_keyboard(supervisors: list[dict]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for supervisor in supervisors:
+        rows.append([
+            InlineKeyboardButton(
+                text=supervisor.get("full_name") or f"Supervisor {supervisor.get('id')}",
+                callback_data=f"supervisor:{supervisor.get('id')}",
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def confirm_or_customize_times_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Use these times", callback_data="times:use_suggested"),
+                InlineKeyboardButton(text="✏️ Customize", callback_data="times:customize"),
+            ]
+        ]
+    )
+
+
+def intake_action_keyboard(medication_id: int, schedule_id: int, date: str, time: str) -> InlineKeyboardMarkup:
+    def _cb(action: str) -> str:
+        return f"intake_{action}:{medication_id}:{schedule_id}:{date}:{time}"
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Consumed", callback_data=_cb("consumed")),
+                InlineKeyboardButton(text="❌ Not consumed", callback_data=_cb("not_consumed")),
+                InlineKeyboardButton(text="😟 Feeling bad", callback_data=_cb("felt_bad")),
+            ]
+        ]
+    )

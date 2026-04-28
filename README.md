@@ -1,6 +1,6 @@
 # Dori Scheduler - Medication Reminder System
 
-Dori Scheduler is a robust, containerized medication reminder system featuring a FastAPI backend and a Telegram bot interface. It is designed to help users manage their medication schedules effectively by providing interactive bot commands, OCR-based prescription scanning, and dynamic scheduling powered by Large Language Models.
+Dori Scheduler is a robust, containerized medication reminder system featuring a FastAPI backend, a Telegram bot interface, and a React + Vite web frontend. It is designed to help users manage medication schedules effectively by providing interactive bot commands, OCR-based prescription scanning, web login via Telegram deep-links, and dynamic scheduling powered by Large Language Models.
 
 ## 📚 Documentation
 
@@ -22,11 +22,13 @@ Start with the [**Documentation Index**](./docs/README.md) for guided navigation
 ## 🌟 Features
 
 - **Telegram Bot Interface:** User-friendly bot built with Aiogram to add, manage, and view medications.
-- **Smart Parsing with LLMs:** Automatically extracts schedules, dosages, and durations from natural language inputs using the Cerebras LLM API.
-- **OCR Prescription Scanning:** Users can upload images of their prescriptions. The system parses them via Google Gemini or EasyOCR to automatically create medication reminders.
+- **Web Frontend:** React + Vite dashboard for Telegram login, OCR parsing, schedules, and analytics.
+- **Smart Parsing with LLMs:** Automatically extracts schedules, dosages, and specific dose times from prescription text.
+- **OCR Prescription Scanning:** Users can upload images of their prescriptions. The system parses them via Google Gemini to automatically create medication reminders.
 - **Automated Daily Reminders:** Integrated with APScheduler to send timely medication reminders based on complex daily schedules.
 - **Interactive Management & FSM:** Uses Finite State Machines (FSM) to guide users through adding, editing, or deleting active medications interactively.
-- **Microservices Architecture:** Fully containerized setup via `docker-compose` separating the Telegram bot, the backend API, and a MySQL database.
+- **Supervisor Reporting:** Supervisors can monitor adherence, intake logs, and medication-specific analytics.
+- **Containerized Architecture:** Fully containerized setup via `docker-compose` separating the frontend, Telegram bot, backend API, and MySQL database.
 
 ## 🛠️ Tech Stack
 
@@ -36,7 +38,7 @@ Start with the [**Documentation Index**](./docs/README.md) for guided navigation
 - **Database:** MySQL 8.0, SQLAlchemy (Async ORM), aiomysql
 - **Task Scheduling:** APScheduler
 - **AI & OCR Integrations:** Cerebras API, Google Gemini API, ocr.space
-- **Containerization:** Docker, Docker Compose
+- **Containerization:** Docker, Docker Compose, Nginx (production frontend)
 
 ## 📂 Project Structure
 
@@ -56,6 +58,7 @@ dori_scheduler/
 │   ├── keyboards.py      # Inline and Reply keyboards definition
 │   ├── states.py         # Aiogram FSM states
 │   └── __init__.py
+├── frontend/             # React + Vite web dashboard
 ├── docker-compose.yml    # Docker services orchestrator
 ├── Dockerfile            # Container build instructions
 ├── .env.example          # Template for required environment variables
@@ -86,9 +89,12 @@ dori_scheduler/
    ```
    Edit `.env` using your preferred text editor:
    - `BOT_TOKEN`: Your Telegram Bot Token.
-   - `CEREBRAS_API_KEY`: API Key for extracting schedule duration.
-   - `GEMINI_API_KEY`: API Key for Google Gemini (OCR).
-   - `DATABASE_URL`: Ensure it points to the docker network (`mysql+aiomysql://dori:secret@mysql:3306/dori_scheduler` for docker-compose).
+- `BOT_USERNAME`: Bot username without `@`, used to build Telegram deep-links.
+- `GEMINI_API_KEY`: API Key for Google Gemini OCR.
+- `GROQ_API_KEY`: API Key for structured medication parsing.
+- `JWT_SECRET`: Secret for signing web auth JWTs.
+- `INTERNAL_API_KEY`: Internal API key used by the bot when linking web sessions.
+- `SUPERVISOR_INVITE_CODE`: Invite code for supervisor registration.
 
 3. **Run with Docker Compose:**
    Build and start the application in detached mode.
@@ -97,10 +103,13 @@ dori_scheduler/
    ```
 
 4. **Verify the services:**
-   Ensure all three containers (`dori_mysql`, `dori_api`, `dori_bot`) are running securely mapping data.
+   Ensure the MySQL, API, bot, and frontend services are running.
    ```bash
    docker-compose ps
    ```
+
+5. **Open the frontend:**
+   Visit `http://localhost:3000` for the Vite development frontend exposed by Compose.
 
 ### Running Locally (Without Docker)
 
@@ -118,6 +127,12 @@ dori_scheduler/
 4. In a separate terminal, start the Telegram Bot:
    ```bash
    python run_bot.py
+   ```
+5. Start the frontend in development mode:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
    ```
 
 ## 💬 Usage (Bot Commands)

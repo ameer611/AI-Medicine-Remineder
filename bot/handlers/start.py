@@ -1,5 +1,4 @@
 from aiogram import F, Router
-from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 
@@ -9,16 +8,6 @@ from bot.handlers.utils import medication_card
 from bot.keyboards import confirm_keyboard
 
 router = Router()
-
-
-@router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer(
-        "👋 Welcome to the Smart Prescription Reminder Bot!\n\n"
-        "How would you like to add your medication?",
-        reply_markup=main_menu_keyboard()
-    )
 
 
 @router.message(F.text == "📸 Scan Prescription")

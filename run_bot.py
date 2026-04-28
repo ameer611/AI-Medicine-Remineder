@@ -10,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from app.config import settings
 from app.logging_config import setup_logging
 from app.services.scheduler_service import shutdown_scheduler, start_scheduler
-from bot.handlers import confirm, edit, image, my_medications, reminder, start, times
+from bot.handlers import confirm, edit, image, my_medications, reminder, start, times, registration, web_auth, intake
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -27,6 +27,8 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
 
     # Register routers
+    dp.include_router(registration.router)
+    dp.include_router(web_auth.router)
     dp.include_router(start.router)
     dp.include_router(image.router)
     dp.include_router(confirm.router)
@@ -34,6 +36,7 @@ async def main() -> None:
     dp.include_router(times.router)
     dp.include_router(reminder.router)
     dp.include_router(my_medications.router)
+    dp.include_router(intake.router)
 
     # Start APScheduler
     start_scheduler()

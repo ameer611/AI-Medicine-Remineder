@@ -11,3 +11,16 @@ class PrescriptionFlow(StatesGroup):
     selecting_times = State()
     selecting_reminder_offset = State()
     selecting_duration = State()
+
+
+class RegistrationFlow(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_supervisor_selection = State()
+
+
+class SupervisorRegistrationFlow(StatesGroup):
+    waiting_for_phone = State()
+
+
+class WebAuthFlow(StatesGroup):
+    waiting_for_phone = State()

@@ -104,6 +104,7 @@ async def _finalize_medication(message: Message, state: FSMContext, duration: in
         try:
             resp = await client.post(f"{settings.API_BASE_URL}/medications", json=payload)
             resp.raise_for_status()
+            response_data = resp.json()
         except Exception as exc:
             logger.error("Failed to save medication: %s", exc)
             await message.answer("❌ Failed to save schedule to database. Please try again later.")
@@ -113,12 +114,14 @@ async def _finalize_medication(message: Message, state: FSMContext, duration: in
     # Wait, the scheduler runs inside the bot process, so we schedule it here directly.
     from app.services.scheduler_service import schedule_reminders
     try:
+        schedules = response_data.get("schedules", [])
         schedule_reminders(
             bot_token=settings.BOT_TOKEN,
             chat_id=user_id,
+            medication_id=response_data["medication"]["id"],
+            schedules=schedules,
             med_name=med["name"],
             notes=med.get("notes"),
-            times=selected_times,
             offset_minutes=offset,
             duration_days=duration,
         )

@@ -2,7 +2,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -33,9 +33,11 @@ class SaveMedicationResponse(BaseModel):
 
 
 class ActiveMedication(BaseModel):
+    medication_id: int
     name: str
     dosage_per_day: int
     times: list[str]
+    schedule_ids: list[int] = Field(default_factory=list)
     reminder_offset_minutes: int
 
 
@@ -104,14 +106,18 @@ async def list_active_medications(
     for med, schedules in meds:
         if not schedules:
             continue
-        times = sorted({s.time for s in schedules})
+        ordered = sorted(schedules, key=lambda s: s.time)
+        times = [s.time for s in ordered]
+        schedule_ids = [s.id for s in ordered]
         # Assume a single offset value per medication; take the first schedule's offset.
-        offset = schedules[0].reminder_offset_minutes
+        offset = ordered[0].reminder_offset_minutes
         active.append(
             ActiveMedication(
+                medication_id=med.id,
                 name=med.name,
                 dosage_per_day=med.dosage_per_day,
                 times=times,
+                schedule_ids=schedule_ids,
                 reminder_offset_minutes=offset,
             )
         )
