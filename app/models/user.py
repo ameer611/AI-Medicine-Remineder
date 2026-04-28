@@ -1,6 +1,6 @@
 """SQLAlchemy User model."""
+from __future__ import annotations
 from datetime import datetime
-from typing import List
 
 from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,7 +24,7 @@ class User(Base):
         "Medication", back_populates="user", cascade="all, delete-orphan"
     )
 
-    supervisor: Mapped["User" | None] = relationship("User", remote_side="User.id", foreign_keys=[supervisor_id])
+    supervisor: Mapped[User | None] = relationship("User", remote_side="User.id", foreign_keys=[supervisor_id])
     supervised_users: Mapped[list["User"]] = relationship("User", foreign_keys="User.supervisor_id")
     intake_logs: Mapped[list["IntakeLog"]] = relationship("IntakeLog", back_populates="user", cascade="all, delete-orphan")
 
