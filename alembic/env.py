@@ -20,7 +20,12 @@ from app.database import Base
 config = context.config
 
 # Interpret the config file for Python logging.
-fileConfig(config.config_file_name)
+try:
+    fileConfig(config.config_file_name)
+except KeyError:
+    # Some environments may have alembic.ini without specific logger_ sections
+    # to keep migrations working, ignore missing logger config keys.
+    pass
 
 # Add your model's MetaData object here for 'autogenerate' support
 target_metadata = Base.metadata
