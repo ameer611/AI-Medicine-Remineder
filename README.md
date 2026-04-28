@@ -2,6 +2,23 @@
 
 Dori Scheduler is a robust, containerized medication reminder system featuring a FastAPI backend and a Telegram bot interface. It is designed to help users manage their medication schedules effectively by providing interactive bot commands, OCR-based prescription scanning, and dynamic scheduling powered by Large Language Models.
 
+## 📚 Documentation
+
+**Complete documentation is available in the [`docs/`](./docs/) folder.**
+
+Quick links:
+- **[Architecture & Design](./docs/ARCHITECTURE.md)** — System overview, data flows, technology stack
+- **[Database Schema](./docs/DATABASE.md)** — Complete ER diagram and model relationships
+- **[API Reference](./docs/API_REFERENCE.md)** — All endpoints with examples
+- **[Bot Commands](./docs/BOT_COMMANDS.md)** — FSM states, handlers, workflows
+- **[User Guide](./docs/USER_GUIDE.md)** — How to use the Telegram bot
+- **[Developer Guide](./docs/DEVELOPER_GUIDE.md)** — Local setup, extending the codebase
+- **[Deployment & Operations](./docs/DEPLOYMENT.md)** — Production deployment, monitoring
+
+Start with the [**Documentation Index**](./docs/README.md) for guided navigation by role.
+
+---
+
 ## 🌟 Features
 
 - **Telegram Bot Interface:** User-friendly bot built with Aiogram to add, manage, and view medications.
