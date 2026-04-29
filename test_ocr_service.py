@@ -87,7 +87,7 @@ class OcrServiceTests(unittest.IsolatedAsyncioTestCase):
                 await extract_text(b"image-bytes", "prescription.jpg")
 
         self.assertIn("Gemini OCR request was rejected as invalid", str(ctx.exception))
-        self.assertEqual(fake_client.calls, 2)
+        self.assertEqual(fake_client.calls, 1)
         fallback_mock.assert_not_called()
 
 
