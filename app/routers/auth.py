@@ -35,7 +35,9 @@ async def bot_link(payload: dict, x_internal_key: str | None = Header(None), db:
     if not session_id or not telegram_id:
         raise HTTPException(status_code=400, detail="Missing session_id or telegram_id")
     ok = await auth_service.link_bot_to_session(session_id, int(telegram_id), db)
-    return {"success": bool(ok)}
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    return {"success": True}
 
 
 @router.get("/me")

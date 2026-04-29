@@ -57,6 +57,8 @@ class AuthService:
         ws = await ws_repo.get_by_session_id(session_id)
         if not ws:
             return False
+        if ws.expires_at < datetime.utcnow():
+            return False
 
         user_repo = UserRepository(db)
         user, _created = await user_repo.get_or_create(telegram_id)
@@ -69,7 +71,12 @@ class AuthService:
             raise HTTPException(status_code=500, detail="JWT_SECRET not configured")
         now = datetime.utcnow()
         exp = now + timedelta(days=int(self.jwt_expire_days))
-        payload = {"sub": int(user.id), "telegram_id": int(user.telegram_id), "role": user.role, "exp": int(exp.timestamp())}
+        payload = {
+            "sub": str(user.id),
+            "telegram_id": int(user.telegram_id),
+            "role": user.role,
+            "exp": int(exp.timestamp()),
+        }
         token = jwt.encode(payload, self.jwt_secret, algorithm="HS256")
         return token
 

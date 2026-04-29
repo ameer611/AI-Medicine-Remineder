@@ -16,7 +16,7 @@ class WebSessionStatus(BaseModel):
 
 
 class TokenPayload(BaseModel):
-    sub: int
+    sub: str
     telegram_id: int
     role: str
     exp: int

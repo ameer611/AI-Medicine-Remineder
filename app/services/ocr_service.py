@@ -17,12 +17,18 @@ class OCRError(Exception):
     """Raised when OCR fails or returns unusable text."""
 
 
+class GeminiOCRError(OCRError):
+    """Raised when Gemini returns a hard request error that should not fall back."""
+
+
 GEMINI_MODELS: Final[tuple[str, ...]] = ("gemini-2.5-flash", "gemini-1.5-flash")
 GEMINI_ENDPOINT_TMPL: Final[str] = (
     "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 )
+OCR_SPACE_RETRYABLE_STATUSES: Final[tuple[int, ...]] = (429, 500, 502, 503, 504)
 
 NOISE_RE = re.compile(r"\s+")
+OCR_SPACE_CAPACITY_RE = re.compile(r"(?:system\s+resource\s+exhaustion|resource\s+exhaustion|e500)", re.IGNORECASE)
 
 # Normalize common medication frequency phrases across Uzbek/Russian variants.
 # Target token `kuniga` is used because it is already expected/handled downstream by the LLM prompt.
@@ -69,6 +75,17 @@ def _infer_mime_type(filename: str) -> str:
     return "image/jpeg"
 
 
+def _format_ocr_space_error(data: dict[str, object]) -> str:
+    message = data.get("ErrorMessage") or data.get("ErrorDetails") or "Unknown OCR.space processing error"
+    if isinstance(message, list):
+        message = "; ".join(str(item) for item in message)
+    return str(message)
+
+
+def _is_ocr_space_capacity_error(message: str) -> bool:
+    return bool(OCR_SPACE_CAPACITY_RE.search(message))
+
+
 async def _extract_text_with_ocr_space(image_bytes: bytes, filename: str) -> str:
     """Fallback OCR provider using OCR.space API."""
     if not settings.OCR_API_KEY:
@@ -85,27 +102,51 @@ async def _extract_text_with_ocr_space(image_bytes: bytes, filename: str) -> str
     }
     files = {"file": (filename, image_bytes, _infer_mime_type(filename))}
 
+    data = None
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(timeout=120.0) as client:
-        try:
-            resp = await client.post(endpoint, data=payload, files=files)
-            resp.raise_for_status()
-            data = resp.json()
-        except httpx.HTTPStatusError as exc:
-            body = ""
+        for attempt in range(3):
             try:
-                body = exc.response.text[:500]
-            except Exception:
-                body = "<unavailable>"
-            raise OCRError(f"OCR.space HTTP error: {exc} | body={body}") from exc
-        except httpx.RequestError as exc:
-            raise OCRError(f"OCR.space network error: {exc}") from exc
-        except ValueError as exc:
-            raise OCRError("OCR.space returned invalid JSON") from exc
+                resp = await client.post(endpoint, data=payload, files=files)
+                resp.raise_for_status()
+                data = resp.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                status = exc.response.status_code
+                body = ""
+                try:
+                    body = exc.response.text[:500]
+                except Exception:
+                    body = "<unavailable>"
+
+                if status in OCR_SPACE_RETRYABLE_STATUSES and attempt < 2:
+                    logger.warning("OCR.space HTTP %s on attempt %d. Retrying...", status, attempt + 1)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+
+                raise OCRError(f"OCR.space HTTP error: {exc} | body={body}") from exc
+            except httpx.RequestError as exc:
+                last_exc = exc
+                if attempt < 2:
+                    logger.warning("OCR.space network error %s on attempt %d. Retrying...", exc, attempt + 1)
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise OCRError(f"OCR.space network error: {exc}") from exc
+            except ValueError as exc:
+                last_exc = exc
+                raise OCRError("OCR.space returned invalid JSON") from exc
+
+    if data is None:
+        raise OCRError(f"OCR.space failed after retries. Last error: {last_exc}")
 
     if data.get("IsErroredOnProcessing"):
-        msg = data.get("ErrorMessage") or data.get("ErrorDetails") or "Unknown OCR.space processing error"
-        if isinstance(msg, list):
-            msg = "; ".join(str(m) for m in msg)
+        msg = _format_ocr_space_error(data)
+        if _is_ocr_space_capacity_error(msg):
+            raise OCRError(
+                "OCR.space is temporarily overloaded (E500 System Resource Exhaustion). "
+                "Please try again in a few minutes."
+            )
         raise OCRError(f"OCR.space processing error: {msg}")
 
     parsed = data.get("ParsedResults") or []
@@ -177,10 +218,20 @@ async def extract_text(image_bytes: bytes, filename: str = "prescription.jpg") -
                             await asyncio.sleep(2 ** attempt)
                             continue
 
-                        # Try a fallback model if the current one is not accepted.
-                        if status in (400, 404):
+                        # Try a fallback model only when the upstream model is not available.
+                        if status == 404:
                             logger.warning("Gemini model %s rejected request with %s; trying fallback.", model, status)
                             break
+
+                        if status == 400:
+                            body = ""
+                            try:
+                                body = exc.response.text[:500]
+                            except Exception:
+                                body = "<unavailable>"
+                            raise GeminiOCRError(
+                                f"Gemini OCR request was rejected as invalid: {exc} | body={body}"
+                            ) from exc
 
                         logger.error("Gemini OCR HTTP error: %s | body=%s", exc, exc.response.text[:500])
                         raise OCRError(f"Gemini OCR service HTTP error: {exc}") from exc
@@ -211,6 +262,8 @@ async def extract_text(image_bytes: bytes, filename: str = "prescription.jpg") -
         raw_text = "\n".join(t for t in extracted_parts if t).strip()
         if not raw_text:
             raise OCRError("Gemini OCR returned no text")
+    except GeminiOCRError:
+        raise
     except OCRError as exc:
         gemini_error = exc
         logger.warning("Gemini OCR failed, trying OCR.space fallback: %s", exc)

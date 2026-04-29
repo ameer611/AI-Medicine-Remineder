@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createSession, checkSession } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
@@ -21,10 +21,30 @@ export default function Login() {
     }
   }, [])
 
+  const handleSessionError = useCallback(error => {
+    const status = error.response?.status
+    if (status === 410) {
+      setError('This login session expired. Please start a new Telegram login.')
+      setSession(null)
+      return
+    }
+    if (status === 404) {
+      setError('This login session could not be found. Please start a new Telegram login.')
+      setSession(null)
+    }
+  }, [])
+
   const task = useMemo(() => {
     if (!session?.session_id) return null
-    return () => checkSession(session.session_id)
-  }, [session?.session_id])
+    return async () => {
+      try {
+        return await checkSession(session.session_id)
+      } catch (error) {
+        handleSessionError(error)
+        throw error
+      }
+    }
+  }, [handleSessionError, session?.session_id])
 
   const { result, running } = usePolling(task || (async () => ({ authenticated: false })), 2000, Boolean(session?.session_id))
 
@@ -37,8 +57,12 @@ export default function Login() {
   const restart = async () => {
     setError('')
     setSession(null)
-    const data = await createSession()
-    setSession(data)
+    try {
+      const data = await createSession()
+      setSession(data)
+    } catch (_) {
+      setError('Could not create a login session.')
+    }
   }
 
   if (!session && !error) return <LoadingSpinner label="Starting Telegram login..." />
@@ -62,7 +86,7 @@ export default function Login() {
           </div>
         </div>
       ) : null}
-      {!running && !error ? (
+      {(!running || error) ? (
         <button className="btn" type="button" onClick={restart}>Try again</button>
       ) : null}
     </section>
