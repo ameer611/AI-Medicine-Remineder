@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.config import settings
 from app.logging_config import setup_logging
-from app.services.scheduler_service import shutdown_scheduler, start_scheduler
+from app.services.scheduler_service import reload_reminders_from_db, shutdown_scheduler, start_scheduler
 from bot.handlers import confirm, edit, image, my_medications, reminder, start, times, registration, web_auth, intake
 
 setup_logging()
@@ -40,6 +40,7 @@ async def main() -> None:
 
     # Start APScheduler
     start_scheduler()
+    await reload_reminders_from_db()
 
     logger.info("Starting bot polling...")
     try:

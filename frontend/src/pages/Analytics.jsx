@@ -13,35 +13,111 @@ function toTimeline(logs) {
     if (log.status === 'consumed') entry.consumed += 1
     grouped.set(key, entry)
   })
-  return [...grouped.values()].map(item => ({ date: item.date, rate: item.total ? Math.round((item.consumed / item.total) * 100) : 0 }))
+  return [...grouped.values()]
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .map(item => ({ date: item.date, rate: item.total ? Math.round((item.consumed / item.total) * 100) : 0 }))
 }
 
 export default function Analytics() {
   const auth = useAuth()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (!auth?.user?.telegram_id) return
+    let active = true
+
+    if (auth?.loading) {
+      return () => {
+        active = false
+      }
+    }
+
+    if (!auth?.user?.telegram_id) {
+      if (active) {
+        setLoading(false)
+        setData(null)
+        setError(null)
+      }
+      return () => {
+        active = false
+      }
+    }
+
     setLoading(true)
+    setError(null)
     const loader = auth.user.role === 'supervisor'
       ? getSupervisorAnalytics(auth.user.telegram_id)
       : getUserAnalytics(auth.user.telegram_id)
 
-    loader.then(setData).finally(() => setLoading(false))
-  }, [auth?.user?.telegram_id, auth?.user?.role])
+    loader
+      .then(result => {
+        if (active) setData(result)
+      })
+      .catch(err => {
+        if (active) {
+          const message = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Failed to load analytics'
+          setError(message)
+          setData(null)
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [auth?.loading, auth?.user?.telegram_id, auth?.user?.role])
 
   const lineData = useMemo(() => toTimeline(data?.logs || []), [data])
   const barData = useMemo(() => {
     if (!data?.stats) return []
     return [
-      { name: 'Consumed', rate: data.stats.consumed || 0 },
-      { name: 'Skipped', rate: data.stats.not_consumed || 0 },
-      { name: 'Feeling bad', rate: data.stats.felt_bad || 0 },
+      { name: 'Consumed', value: data.stats.consumed || 0 },
+      { name: 'Skipped', value: data.stats.not_consumed || 0 },
+      { name: 'Feeling bad', value: data.stats.felt_bad || 0 },
     ]
   }, [data])
+  const hasIntakeData = (data?.stats?.total_scheduled || 0) > 0 || (data?.logs || []).length > 0
 
-  if (loading) return <LoadingSpinner label="Loading analytics..." />
+  if (auth?.loading || loading) return <LoadingSpinner label="Loading analytics..." />
+
+  if (!auth?.user) {
+    return (
+      <section className="stack">
+        <div className="hero">
+          <span className="hero__eyebrow">Analytics</span>
+          <h1>Authentication required</h1>
+          <p>Sign in to view your medication adherence analytics.</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (error) {
+    return (
+      <section className="stack">
+        <div className="hero">
+          <span className="hero__eyebrow">Analytics</span>
+          <h1>Unable to load analytics</h1>
+          <p className="muted">{error}</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (!data) {
+    return (
+      <section className="stack">
+        <div className="hero">
+          <span className="hero__eyebrow">Analytics</span>
+          <h1>{auth.user.role === 'supervisor' ? 'Supervisor dashboard' : 'Your adherence dashboard'}</h1>
+          <p>No intake data yet. Start logging medicines to see your analytics.</p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="stack">
@@ -59,10 +135,14 @@ export default function Analytics() {
         </div>
       ) : null}
 
-      <div className="grid grid--2">
-        <AdherenceLineChart data={lineData} />
-        <AdherenceBarChart data={barData} />
-      </div>
+      {hasIntakeData ? (
+        <div className="grid grid--2">
+          <AdherenceLineChart data={lineData} />
+          <AdherenceBarChart data={barData} title="Intake status breakdown" />
+        </div>
+      ) : (
+        <div className="empty">No intake logs found yet.</div>
+      )}
 
       {Array.isArray(data?.by_medication) && data.by_medication.length ? (
         <div className="card stack">

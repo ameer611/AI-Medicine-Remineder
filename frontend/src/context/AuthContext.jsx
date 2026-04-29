@@ -1,7 +1,18 @@
 import { createContext, useEffect, useState } from 'react'
 import { getMe } from '../api/auth'
+import { getAuthToken } from '../api/client'
 
 export const AuthContext = createContext(null)
+
+function storeToken(token) {
+  localStorage.setItem('jwt_token', token)
+  sessionStorage.setItem('jwt_token', token)
+}
+
+function clearToken() {
+  localStorage.removeItem('jwt_token')
+  sessionStorage.removeItem('jwt_token')
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -9,7 +20,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let alive = true
-    const token = localStorage.getItem('jwt_token')
+    const token = getAuthToken()
     if (!token) {
       setLoading(false)
       return
@@ -20,7 +31,7 @@ export function AuthProvider({ children }) {
         if (alive) setUser(profile)
       })
       .catch(() => {
-        localStorage.removeItem('jwt_token')
+        clearToken()
       })
       .finally(() => {
         if (alive) setLoading(false)
@@ -31,14 +42,20 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const loginWithToken = async token => {
-    localStorage.setItem('jwt_token', token)
-    const profile = await getMe()
-    setUser(profile)
+  const loginWithToken = async (token, profile = null) => {
+    storeToken(token)
+    if (profile) {
+      setUser(profile)
+      return profile
+    }
+
+    const me = await getMe()
+    setUser(me)
+    return me
   }
 
   const logout = () => {
-    localStorage.removeItem('jwt_token')
+    clearToken()
     setUser(null)
   }
 

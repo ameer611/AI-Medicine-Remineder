@@ -4,10 +4,10 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
+from app.models import User
 from datetime import datetime
 
-from app.models.web_session import WebSession
+from app.models import WebSession
 
 logger = logging.getLogger(__name__)
 

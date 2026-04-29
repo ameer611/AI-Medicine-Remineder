@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.medication import Medication
+from app.models import Medication
 from app.schemas.medication import MedicationCreate
 
 logger = logging.getLogger(__name__)

@@ -20,14 +20,24 @@ class IntakeLogService:
 
     async def log_intake(self, data: IntakeLogCreate, db: AsyncSession):
         intake_repo = IntakeLogRepository(db)
-        log = await intake_repo.create(
+        existing_log = await intake_repo.get_by_slot(
             user_id=data.user_id,
             medication_id=data.medication_id,
             schedule_id=data.schedule_id,
             scheduled_time=data.scheduled_time,
             scheduled_date=data.scheduled_date,
-            status=data.status,
         )
+        if existing_log:
+            log = await intake_repo.update_status(existing_log, data.status)
+        else:
+            log = await intake_repo.create(
+                user_id=data.user_id,
+                medication_id=data.medication_id,
+                schedule_id=data.schedule_id,
+                scheduled_time=data.scheduled_time,
+                scheduled_date=data.scheduled_date,
+                status=data.status,
+            )
 
         # If felt bad -> notify supervisor
         if data.status == "felt_bad":

@@ -41,6 +41,20 @@ async def handle_prescription_photo(message: Message, state: FSMContext, bot: Bo
             text = ocr_resp.json().get("text", "")
             if not text:
                 raise ValueError("Empty OCR text")
+        except httpx.HTTPStatusError as exc:
+            detail = ""
+            try:
+                payload = exc.response.json()
+                detail = payload.get("detail", "") if isinstance(payload, dict) else ""
+            except Exception:
+                detail = exc.response.text[:300] if exc.response is not None else ""
+
+            logger.error("OCR API HTTP error: %s | detail=%s", exc, detail)
+            await msg.edit_text(
+                "❌ Failed to extract text from the image. "
+                f"{('Reason: ' + detail) if detail else 'Please try a clearer photo.'}"
+            )
+            return
         except Exception as exc:
             logger.error("OCR API error: %s", exc)
             await msg.edit_text("❌ Failed to extract text from the image. Please try a clearer photo.")

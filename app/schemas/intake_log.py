@@ -15,7 +15,9 @@ class IntakeLogCreate(BaseModel):
 
 class IntakeLogRead(BaseModel):
     id: int
+    user_id: int
     medication_id: int
+    schedule_id: int | None
     scheduled_time: str
     scheduled_date: date
     status: str

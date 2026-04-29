@@ -12,8 +12,26 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Pytest & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Models and specific ignore lists
 download_models.py
+
+# Frontend / Node
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# Vite
+*.local
 
 # Docker
 docker-compose.override.yml
@@ -22,6 +40,8 @@ docker-compose.override.yml
 # IDEs
 .idea/
 .vscode/
+*.swp
+*.swo
 
 # OS Specific
 .DS_Store

@@ -4,7 +4,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.schedule import Schedule
+from app.models import Schedule
 from app.schemas.schedule import ScheduleCreate
 
 logger = logging.getLogger(__name__)

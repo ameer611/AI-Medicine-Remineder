@@ -8,8 +8,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.user import User
-from app.models.medication import Medication
+from app.models import User, Medication
 
 logger = logging.getLogger(__name__)
 

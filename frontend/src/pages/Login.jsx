@@ -30,7 +30,7 @@ export default function Login() {
 
   useEffect(() => {
     if (result?.authenticated && result.jwt_token) {
-      auth.loginWithToken(result.jwt_token).then(() => navigate('/'))
+      auth.loginWithToken(result.jwt_token, result.user ?? null).then(() => navigate('/'))
     }
   }, [result, auth, navigate])
 

@@ -30,7 +30,7 @@ async def register_user(payload: UserRegisterRequest, db: AsyncSession = Depends
     user_repo = UserRepository(db)
     # If supervisor_id provided, validate that it's a supervisor
     if payload.supervisor_id is not None:
-        from app.models.user import User as UserModel
+        from app.models import User as UserModel
 
         sup = await db.get(UserModel, payload.supervisor_id)
         if not sup or sup.role != "supervisor":

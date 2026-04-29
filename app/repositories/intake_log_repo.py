@@ -1,10 +1,10 @@
 """Repository for IntakeLog operations."""
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.intake_log import IntakeLog
+from app.models import IntakeLog
 
 
 class IntakeLogRepository:
@@ -19,10 +19,41 @@ class IntakeLogRepository:
             scheduled_time=scheduled_time,
             scheduled_date=scheduled_date,
             status=status,
-            logged_at=func.utc_timestamp(),
+            logged_at=datetime.utcnow(),
         )
         self.session.add(log)
         await self.session.flush()
+        await self.session.refresh(log)
+        return log
+
+    async def get_by_slot(
+        self,
+        user_id: int,
+        medication_id: int,
+        schedule_id: int | None,
+        scheduled_time: str,
+        scheduled_date: date,
+    ) -> IntakeLog | None:
+        conditions = [
+            IntakeLog.user_id == user_id,
+            IntakeLog.medication_id == medication_id,
+            IntakeLog.scheduled_time == scheduled_time,
+            IntakeLog.scheduled_date == scheduled_date,
+        ]
+        if schedule_id is None:
+            conditions.append(IntakeLog.schedule_id.is_(None))
+        else:
+            conditions.append(IntakeLog.schedule_id == schedule_id)
+
+        result = await self.session.execute(select(IntakeLog).where(and_(*conditions)).limit(1))
+        return result.scalar_one_or_none()
+
+    async def update_status(self, log: IntakeLog, status: str) -> IntakeLog:
+        log.status = status
+        log.logged_at = datetime.utcnow()
+        self.session.add(log)
+        await self.session.flush()
+        await self.session.refresh(log)
         return log
 
     async def get_by_user_and_date(self, user_id: int, date_: date) -> list[IntakeLog]:

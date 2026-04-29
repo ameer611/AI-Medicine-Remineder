@@ -2,6 +2,7 @@
 from typing import List
 from pydantic import BaseModel
 
+from app.schemas.intake_log import IntakeLogRead
 from app.schemas.user import UserRead
 
 
@@ -27,5 +28,7 @@ class MedicationAdherenceReport(BaseModel):
 class SupervisorDashboard(BaseModel):
     total_users: int
     overall_adherence_rate: float
+    stats: AdherenceStats
     users: List[UserAdherenceReport]
     by_medication: List[MedicationAdherenceReport]
+    logs: List[IntakeLogRead]

@@ -9,6 +9,9 @@ from app.repositories.user_repo import UserRepository
 from app.repositories.intake_log_repo import IntakeLogRepository
 from app.repositories.medication_repo import MedicationRepository
 from app.services.auth_service import AuthService
+from app.schemas.analytics import SupervisorDashboard
+from app.schemas.intake_log import IntakeLogRead
+from app.schemas.user import UserRead
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 auth_service = AuthService()
@@ -53,6 +56,10 @@ async def _build_medication_breakdown(db: AsyncSession, logs):
     return sorted(breakdown, key=lambda item: item["medication_name"])
 
 
+def _serialize_logs(logs):
+    return [IntakeLogRead.model_validate(log).model_dump(mode="json") for log in logs]
+
+
 @router.get("/user/{telegram_id}")
 async def user_analytics(telegram_id: int, start_date: datetime | None = Query(None), end_date: datetime | None = Query(None), db: AsyncSession = Depends(get_db)):
     user_repo = UserRepository(db)
@@ -67,21 +74,15 @@ async def user_analytics(telegram_id: int, start_date: datetime | None = Query(N
     logs = await _collect_logs_for_user(repo, user.id, start_date.date(), end_date.date())
     stats = await repo.get_adherence_stats(user.id, start_date.date(), end_date.date())
     by_medication = await _build_medication_breakdown(db, logs)
-    return {"stats": stats, "logs": logs, "by_medication": by_medication}
+    return {"stats": stats, "logs": _serialize_logs(logs), "by_medication": by_medication}
 
 
-@router.get("/supervisor/{telegram_id}")
+@router.get("/supervisor/{telegram_id}", response_model=SupervisorDashboard)
 async def supervisor_analytics(telegram_id: int, authorization: str | None = Header(None), start_date: datetime | None = Query(None), end_date: datetime | None = Query(None), db: AsyncSession = Depends(get_db)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    try:
-        scheme, token = authorization.split()
-    except Exception:
-        raise HTTPException(status_code=401, detail="Malformed Authorization header")
-    payload = auth_service.verify_jwt(token)
-    if payload.role != "supervisor":
+    current_user = await auth_service.get_current_user(authorization, db)
+    if current_user.role != "supervisor":
         raise HTTPException(status_code=403, detail="Requires supervisor role")
-    if payload.telegram_id != telegram_id:
+    if current_user.telegram_id != telegram_id:
         raise HTTPException(status_code=403, detail="Can only access your supervisor dashboard")
 
     if not start_date:
@@ -90,10 +91,7 @@ async def supervisor_analytics(telegram_id: int, authorization: str | None = Hea
         end_date = datetime.utcnow()
 
     user_repo = UserRepository(db)
-    supervisor = await user_repo.get_by_telegram_id(telegram_id)
-    if not supervisor:
-        raise HTTPException(status_code=404, detail="Supervisor not found")
-    users = await user_repo.get_users_by_supervisor(supervisor.id)
+    users = await user_repo.get_users_by_supervisor(current_user.id)
     repo = IntakeLogRepository(db)
     user_reports = []
     total_users = len(users)
@@ -109,7 +107,7 @@ async def supervisor_analytics(telegram_id: int, authorization: str | None = Hea
         overall_total += stats["total_scheduled"]
         overall_not_consumed += stats["not_consumed"]
         overall_felt_bad += stats["felt_bad"]
-        user_reports.append({"user": u, "stats": stats})
+        user_reports.append({"user": UserRead.model_validate(u).model_dump(mode="json"), "stats": stats})
         all_logs.extend(logs)
 
     overall_rate = (overall_consumed / overall_total * 100) if overall_total else 0.0
@@ -128,6 +126,6 @@ async def supervisor_analytics(telegram_id: int, authorization: str | None = Hea
         "stats": stats,
         "users": user_reports,
         "by_medication": by_medication,
-        "logs": all_logs,
+        "logs": _serialize_logs(all_logs),
     }
     return dashboard

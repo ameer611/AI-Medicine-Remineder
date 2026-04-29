@@ -1,20 +1,28 @@
 """APScheduler service — schedules daily medication reminders."""
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.config import settings
+from app.database import AsyncSessionFactory
+from app.models import Medication
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler(timezone="UTC")
+APP_TIMEZONE = ZoneInfo(settings.TIMEZONE)
+scheduler = AsyncIOScheduler(timezone=APP_TIMEZONE)
 
 
 def start_scheduler() -> None:
     if not scheduler.running:
         scheduler.start()
-        logger.info("APScheduler started")
+        logger.info("APScheduler started in timezone=%s", settings.TIMEZONE)
 
 
 def shutdown_scheduler() -> None:
@@ -59,7 +67,7 @@ async def _send_reminder(
     reply_markup = _build_reply_markup(
         medication_id,
         schedule_id,
-        datetime.utcnow().date().isoformat(),
+        datetime.now(APP_TIMEZONE).date().isoformat(),
         scheduled_time,
     )
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -88,7 +96,7 @@ def schedule_reminders(
     duration_days: int,
 ) -> None:
     """For each schedule create before and exact reminder jobs."""
-    now = datetime.utcnow()
+    now = datetime.now(APP_TIMEZONE)
     end_date = now + timedelta(days=duration_days)
     notes_text = f"\n📝 <i>{notes}</i>" if notes else ""
 
@@ -97,7 +105,7 @@ def schedule_reminders(
         time_str = schedule["time"]
         hh, mm = map(int, time_str.split(":"))
 
-        before_dt = datetime.utcnow().replace(hour=hh, minute=mm, second=0, microsecond=0)
+        before_dt = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
         before_dt -= timedelta(minutes=offset_minutes)
         before_hh, before_mm = before_dt.hour, before_dt.minute
 
@@ -129,3 +137,47 @@ def schedule_reminders(
             "Scheduled reminders for '%s' schedule_id=%s at %s (before=%02d:%02d) for %d days",
             med_name, schedule_id, time_str, before_hh, before_mm, duration_days,
         )
+
+
+async def reload_reminders_from_db() -> None:
+    if not settings.BOT_TOKEN:
+        logger.warning("BOT_TOKEN missing; cannot restore reminder jobs")
+        return
+
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            select(Medication).options(
+                selectinload(Medication.user),
+                selectinload(Medication.schedules),
+            )
+        )
+        medications = result.scalars().all()
+
+    restored = 0
+    for medication in medications:
+        if not medication.user or not medication.user.telegram_id or not medication.schedules:
+            continue
+        schedules = [
+            {
+                "id": schedule.id,
+                "time": schedule.time,
+                "reminder_offset_minutes": schedule.reminder_offset_minutes,
+                "duration_in_days": schedule.duration_in_days,
+            }
+            for schedule in medication.schedules
+        ]
+        duration_days = max(schedule["duration_in_days"] for schedule in schedules)
+        offset_minutes = schedules[0]["reminder_offset_minutes"]
+        schedule_reminders(
+            bot_token=settings.BOT_TOKEN,
+            chat_id=int(medication.user.telegram_id),
+            medication_id=medication.id,
+            schedules=schedules,
+            med_name=medication.name,
+            notes=medication.notes,
+            offset_minutes=offset_minutes,
+            duration_days=duration_days,
+        )
+        restored += len(schedules)
+
+    logger.info("Reloaded %d schedule(s) from the database into APScheduler", restored)

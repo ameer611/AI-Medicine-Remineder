@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str  # mysql+aiomysql://user:pass@host:port/db
+    TIMEZONE: str = "Asia/Tashkent"
 
     # Internal
     API_BASE_URL: str = "http://localhost:8000"

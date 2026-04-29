@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models import User
 from app.repositories.web_session_repo import WebSessionRepository
 from app.repositories.user_repo import UserRepository
 from app.schemas.auth import WebSessionCreate, WebSessionStatus, TokenPayload
@@ -43,12 +44,7 @@ class AuthService:
         if not ws.user_id:
             return WebSessionStatus(authenticated=False)
 
-        user_repo = UserRepository(db)
-        user = await db.get(object(), ws.user_id)  # placeholder to satisfy typing
-        # safer: load via session
-        from app.models.user import User as UserModel
-
-        user = await db.get(UserModel, ws.user_id)
+        user = await db.get(User, ws.user_id)
         if not user:
             return WebSessionStatus(authenticated=False)
 
@@ -87,3 +83,21 @@ class AuthService:
             raise HTTPException(status_code=401, detail="Token expired")
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
+
+    def get_token_payload(self, authorization: str | None) -> TokenPayload:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Missing Authorization header")
+        try:
+            scheme, token = authorization.split()
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Malformed Authorization header")
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Malformed Authorization header")
+        return self.verify_jwt(token)
+
+    async def get_current_user(self, authorization: str | None, db: AsyncSession) -> User:
+        payload = self.get_token_payload(authorization)
+        user = await db.get(User, int(payload.sub))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user

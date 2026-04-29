@@ -40,19 +40,7 @@ async def bot_link(payload: dict, x_internal_key: str | None = Header(None), db:
 
 @router.get("/me")
 async def me(authorization: str | None = Header(None), db: AsyncSession = Depends(get_db)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    try:
-        scheme, token = authorization.split()
-    except Exception:
-        raise HTTPException(status_code=401, detail="Malformed Authorization header")
-    payload = auth_service.verify_jwt(token)
-    # load user
-    from app.models.user import User as UserModel
-
-    user = await db.get(UserModel, int(payload.sub))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
     from app.schemas.user import UserRead
 
+    user = await auth_service.get_current_user(authorization, db)
     return UserRead.model_validate(user)

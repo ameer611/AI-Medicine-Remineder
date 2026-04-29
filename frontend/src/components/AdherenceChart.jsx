@@ -27,17 +27,17 @@ export function AdherenceLineChart({ data }) {
   )
 }
 
-export function AdherenceBarChart({ data }) {
+export function AdherenceBarChart({ data, title = 'Status breakdown' }) {
   return (
     <div className="panel" style={{ height: 320 }}>
-      <h3>Per-medication adherence</h3>
+      <h3>{title}</h3>
       <ResponsiveContainer width="100%" height="88%">
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
           <XAxis dataKey="name" />
           <YAxis />
           <Tooltip />
-          <Bar dataKey="rate" fill="#b45309" radius={[8, 8, 0, 0]} />
+          <Bar dataKey="value" fill="#b45309" radius={[8, 8, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

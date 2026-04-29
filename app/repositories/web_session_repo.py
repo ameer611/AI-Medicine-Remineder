@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.web_session import WebSession
+from app.models import WebSession
 
 
 class WebSessionRepository:
