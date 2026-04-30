@@ -16,27 +16,38 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add new columns to users table
-    op.add_column(
-        "users",
-        sa.Column("full_name", sa.String(length=255), nullable=True),
-    )
-    op.add_column(
-        "users",
-        sa.Column("phone_number", sa.String(length=20), nullable=True),
-    )
+    # Add new columns to users table (only if they don't already exist)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = inspector.get_table_names()
+    existing_columns = set()
+    if "users" in existing_tables:
+        existing_columns = {c["name"] for c in inspector.get_columns("users")}
+
+    if "full_name" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("full_name", sa.String(length=255), nullable=True),
+        )
+    if "phone_number" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("phone_number", sa.String(length=20), nullable=True),
+        )
     # role enum
     user_role_enum = sa.Enum("user", "supervisor", name="user_role")
     user_role_enum.create(op.get_bind(), checkfirst=True)
-    op.add_column(
-        "users",
-        sa.Column("role", user_role_enum, nullable=False, server_default="user"),
-    )
+    if "role" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("role", user_role_enum, nullable=False, server_default="user"),
+        )
     # supervisor_id with SET NULL on delete
-    op.add_column(
-        "users",
-        sa.Column("supervisor_id", sa.Integer(), nullable=True),
-    )
+    if "supervisor_id" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("supervisor_id", sa.Integer(), nullable=True),
+        )
     op.create_foreign_key(
         "fk_users_supervisor_id",
         "users",
@@ -45,14 +56,16 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
-    op.add_column(
-        "users",
-        sa.Column("web_session_id", sa.String(length=255), nullable=True),
-    )
-    op.add_column(
-        "users",
-        sa.Column("web_session_expires_at", sa.DateTime(), nullable=True),
-    )
+    if "web_session_id" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("web_session_id", sa.String(length=255), nullable=True),
+        )
+    if "web_session_expires_at" not in existing_columns:
+        op.add_column(
+            "users",
+            sa.Column("web_session_expires_at", sa.DateTime(), nullable=True),
+        )
 
     # Indexes
     op.create_index(op.f("ix_users_phone_number"), "users", ["phone_number"], unique=False)
